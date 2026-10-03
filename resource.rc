@@ -1,0 +1,143 @@
+#include <windows.h>
+#include <commctrl.h>
+#include "resource.h"
+
+#ifndef IDC_STATIC
+#define IDC_STATIC -1
+#endif
+
+
+IDD_SELECT_SSH DIALOGEX 0, 0, 240, 105
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION
+CAPTION "选择 SSH 路径"
+FONT 9, "Segoe UI", 0, 0, 0x1
+BEGIN
+    LTEXT "请选择 OpenSSH :", IDC_STATIC, 10, 10, 180, 10
+    COMBOBOX IDC_COMBO_SSH_PATH, 10, 25, 160, 50, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    DEFPUSHBUTTON "确定", IDOK, 175, 23, 56, 18, WS_TABSTOP
+    PUSHBUTTON    "取消", IDCANCEL, 175, 46, 56, 18, WS_TABSTOP
+    PUSHBUTTON      "添加", IDC_BTN_ADD_CUSTOM, 0, 85, 120, 20
+	PUSHBUTTON      "删除", IDC_BTN_DEL_CUSTOM, 120, 85, 120, 20
+    AUTOCHECKBOX "记住我的选择 ( 测试阶段 )", IDC_CHK_REMEMBER_SSH, 10, 46, 130, 12, WS_TABSTOP
+END
+
+IDD_MAIN_DIALOG DIALOGEX 0, 0, WIDTH, HEIGHT
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "SSH 终端启动器"
+MENU IDR_MAIN_MENU
+FONT 9, "Segoe UI", 0, 0, 0x1
+BEGIN
+    // ===== 连接设置 组 (5,5) 宽330 高95 =====
+    GROUPBOX "连接设置", IDC_STATIC, 5, 5, 330, 95
+
+    // 第1行 y=20: 主机(55) + 端口(75) + 用户(130)
+    LTEXT "主机:", IDC_STATIC, 12, 22, 32, 7
+    EDITTEXT IDC_EDIT_HOST, 32, 21, 75, 12, ES_AUTOHSCROLL | WS_BORDER | WS_TABSTOP
+
+    LTEXT "端口:", IDC_STATIC, 135, 22, 28, 7
+    EDITTEXT IDC_EDIT_PORT, 155, 21, 45, 12, ES_AUTOHSCROLL | ES_NUMBER | WS_BORDER | WS_TABSTOP
+
+    LTEXT "用户:", IDC_STATIC, 215, 22, 30, 7
+    EDITTEXT IDC_EDIT_USER, 235, 21, 75, 12, ES_AUTOHSCROLL | WS_BORDER | WS_TABSTOP
+
+    // 第2行 y=45: 认证 + 密钥文件
+    LTEXT "认证:", IDC_STATIC, 12, 47, 32, 7
+    RADIOBUTTON "密码", IDC_RADIO_PASSWORD, 48, 47, 42, 10, WS_TABSTOP | WS_GROUP
+    RADIOBUTTON "密钥", IDC_RADIO_KEY, 95, 47, 42, 10, WS_TABSTOP
+
+    LTEXT "密钥:", IDC_STATIC, 150, 47, 30, 7
+    EDITTEXT IDC_EDIT_KEY_FILE, 183, 44, 110, 14, ES_AUTOHSCROLL | WS_BORDER | WS_TABSTOP | ES_READONLY
+    PUSHBUTTON "浏览", IDC_BTN_BROWSE_KEY, 298, 44, 36, 14, WS_TABSTOP
+
+    // 第3行 y=70: 超时 + 加密
+    LTEXT "超时:", IDC_STATIC, 12, 72, 32, 7
+    EDITTEXT IDC_EDIT_TIMEOUT, 36, 71, 40, 12, ES_AUTOHSCROLL | ES_NUMBER | WS_BORDER | WS_TABSTOP
+
+    LTEXT "加密:", IDC_STATIC, 100, 72, 32, 7
+    COMBOBOX IDC_COMBO_ENCRYPTION, 135, 70, 135, 60, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+
+    // ===== 高级选项 组 (5,105) 宽330 高77 =====
+    GROUPBOX "高级选项", IDC_STATIC, 5, 105, 330, 143
+
+    AUTOCHECKBOX "压缩(-C)", IDC_CHK_COMPRESS, 12, 120, 40, 10, WS_TABSTOP
+    AUTOCHECKBOX "X11(-X)", IDC_CHK_X11_FORWARD, 70, 120, 40, 10, WS_TABSTOP
+    AUTOCHECKBOX "详细(-v)", IDC_CHK_VERBOSE, 128, 120, 40, 10, WS_TABSTOP
+    AUTOCHECKBOX "心跳(ServerAliveInterval=60)", IDC_CHK_KEEPALIVE, 186, 120, 115, 10, WS_TABSTOP
+	
+	LTEXT "本地转发(-L):", IDC_STATIC, 12, 140, 68, 10
+	EDITTEXT IDC_EDIT_LOCAL_FWD, 78, 138, 250, 12, ES_AUTOHSCROLL | WS_BORDER | WS_TABSTOP
+	
+	LTEXT "远程转发(-R):", IDC_STATIC, 12, 156, 66, 10
+	EDITTEXT IDC_EDIT_REMOTE_FWD, 78, 154, 250, 12, ES_AUTOHSCROLL | WS_BORDER | WS_TABSTOP
+	
+	LTEXT "动态转发(-D):", IDC_STATIC, 12, 172, 67, 10
+	EDITTEXT IDC_EDIT_DYNAMIC_FWD, 78, 170, 250, 12, ES_AUTOHSCROLL | WS_BORDER | WS_TABSTOP
+	
+	LTEXT "跳板机(-J):", IDC_STATIC, 12, 188, 67, 10
+	EDITTEXT IDC_EDIT_PROXY_JUMP, 78, 186, 250, 12, ES_AUTOHSCROLL | WS_BORDER | WS_TABSTOP    
+
+    LTEXT "额外:", IDC_STATIC, 12, 210, 35, 7
+    EDITTEXT IDC_EDIT_EXTRA_ARGS, 45, 207, 285, 35, 
+    ES_MULTILINE | ES_AUTOVSCROLL | ES_AUTOHSCROLL | ES_WANTRETURN | WS_VSCROLL | WS_BORDER | WS_TABSTOP
+
+    // ===== 按钮行 =====
+    PUSHBUTTON "连接", IDC_BTN_CONNECT, 40, 250, 70, 24, BS_DEFPUSHBUTTON | WS_TABSTOP
+    PUSHBUTTON "清空状态栏", IDC_BTN_CLEAR_LOG, 130, 250, 70, 24, WS_TABSTOP
+    
+    
+    
+    
+    CONTROL "", IDC_STATUS_BAR, "msctls_statusbar32", 
+        WS_CHILD | WS_VISIBLE | SBARS_SIZEGRIP, 
+        0,0,0,0
+END
+
+IDR_MAIN_MENU MENU
+BEGIN
+    POPUP "&文件"
+    BEGIN
+    	MENUITEM "切换 OpenSSH...(&T)", IDM_FILE_TOGGLE
+        MENUITEM "导出配置为批处理...(&O)", IDM_FILE_EXPORT_BAT
+        MENUITEM "打开 .ssh 文件夹(&E)",     IDM_FILE_OPEN_SSH_DIR
+        MENUITEM SEPARATOR
+        MENUITEM "退出", IDM_FILE_EXIT
+    END
+    POPUP "&工具"
+    BEGIN
+    	MENUITEM "CMD Ping(&P)", IDM_TOOLS_PING
+    	MENUITEM "SSH 连接测试(&S)",        IDM_TOOLS_SSH_TEST
+    	MENUITEM SEPARATOR
+    	MENUITEM "添加主机公钥到 known_hosts(&K)", IDM_TOOLS_ADD_KEY
+        MENUITEM SEPARATOR
+        MENUITEM "生成密钥对...",       IDM_TOOLS_GEN_KEY
+        MENUITEM "复制公钥到剪贴板(&C)",    IDM_TOOLS_COPY_PUB
+    END
+    POPUP "&帮助"
+    BEGIN
+    	MENUITEM "Powershell/Win32-OpenSSH Github", IDM_HELP_GITHUB
+    	MENUITEM "OpenSSH Terminal Help", IDM_HELP_SSH
+    	MENUITEM SEPARATOR
+        MENUITEM "关于(&A)", IDM_HELP_ABOUT
+    END
+END
+
+/////////////////////////////////////////////////////////////////////////////
+// Manifest for visual styles (embedded)
+1 24 MOVEABLE PURE
+BEGIN
+    "<?xml version='1.0' encoding='UTF-8' standalone='yes'?>\n"
+    "<assembly xmlns='urn:schemas-microsoft-com:asm.v1' manifestVersion='1.0'>\n"
+    "  <dependency>\n"
+    "    <dependentAssembly>\n"
+    "      <assemblyIdentity\n"
+    "        type='win32'\n"
+    "        name='Microsoft.Windows.Common-Controls'\n"
+    "        version='6.0.0.0'\n"
+    "        processorArchitecture='*'\n"
+    "        publicKeyToken='6595b64144ccf1df'\n"
+    "        language='*'\n"
+    "      />\n"
+    "    </dependentAssembly>\n"
+    "  </dependency>\n"
+    "</assembly>\n"
+END
