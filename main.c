@@ -1328,6 +1328,27 @@ Str GetAppDirectory(void) {
     return path;
 }
 
+/* 「走环境变量 PATH 解析」那一项的取值与显示标签。
+ *
+ * 取值是裸的 "ssh"（不是路径，没有盘符没有分隔符），显示是
+ * "ssh (环境变量)"。两者必须成对定义：取值给 CreateProcess /
+ * ShellExecute 用（由 PATH 解析），显示给人看。
+ *
+ * 判定一律用下面的 IsEnvSSHPath()，不要在各处散写 strcmp(..., "ssh")：
+ * 只要这一项曾经被当成路径处理过（IsFileExist），选它就报"无此路径"。 */
+#define GX_SSH_ENV_VALUE   "ssh"
+#define GX_SSH_ENV_LABEL   "ssh (环境变量)"
+
+/* 这个取值是不是"交给 PATH 解析"而不是一个文件路径 */
+static bool IsEnvSSHPath(const char* p) {
+    if (!p || !*p) return false;
+    /* 含盘符或分隔符就是路径；其余按裸命令名比较 */
+    if (strchr(p, '\\') != NULL || strchr(p, '/') != NULL || strchr(p, ':') != NULL) {
+        return false;
+    }
+    return StrEqCI(p, GX_SSH_ENV_VALUE);
+}
+
 void CollectAllSSHCandidates(StrList* out) {
     Str appDir;
     Str p;
@@ -1340,8 +1361,13 @@ void CollectAllSSHCandidates(StrList* out) {
     str_init(&searchPattern);
     appDir = GetAppDirectory();
 
+    /* 环境变量那一项的真实取值是裸的 "ssh" —— 交给 CreateProcess /
+     * ShellExecute 时由 PATH 解析，它不是一个文件路径，IsFileExist()
+     * 对它没有意义（原来整串 "ssh (环境变量)" 被当成路径，于是
+     * IsFileExist("ssh (环境变量)") 必然失败，选择它就报"无此路径"）。
+     * " (环境变量)" 只是给人看的说明，见 GX_SSH_ENV_LABEL。 */
     if (IsSSHAvailable()) {
-        sl_push(out, "ssh (环境变量)");
+        sl_push(out, GX_SSH_ENV_VALUE);
     }
 
     str_setf(&p, "%sssh.exe", StrCStr(&appDir));
@@ -2278,6 +2304,14 @@ bool LoadSSHPathConfig(Str* outPath) {
 
     if (buf[0] == '\0') return false;
 
+    /* 兼容旧配置：早期版本存过 "ssh (环境变量)" 这种带说明后缀的写法。
+     * 它不是可执行的取值，读到就折算成裸的 "ssh"，否则启动时会拿着它
+     * 去 IsFileExist() 判定而失败，表现为"记住的路径失效"。 */
+    if (StrContainsCI(buf, "环境变量")) {
+        str_set(outPath, GX_SSH_ENV_VALUE);
+        return true;
+    }
+
     str_set(outPath, buf);
     return true;
 }
@@ -2430,9 +2464,16 @@ void LoadConfigFromIni(HWND hDlg) {
 /* 往下拉框加一项：显示文本走 PathToDisplay()（可能是相对路径），
  * 真实绝对路径存进 g_sshComboReal，itemdata 存它在列表里的下标。
  *
+ * labelOverride 非空时，显示文本直接用它、不再走 PathToDisplay()。
+ * 「环境变量」那一项需要它：真实取值是裸的 "ssh"（交给 CreateProcess
+ * 时由 PATH 去解析），但显示给人看的是 "ssh (环境变量)"。这两者不是
+ * 同一个字符串的两种写法，是「执行用名」和「显示用名」两回事，所以不能
+ * 靠解析显示文本还原 —— 只能显式带两个值进来。
+ *
  * 顺序是先 CB_ADDSTRING、成功之后才 sl_push —— 反过来的话添加失败时
  * g_sshComboReal 会比下拉框多一项，后面所有下标整体错位。 */
-static void ComboAddSSHItem(HWND hCombo, const char* realPath, bool isCustom) {
+static void ComboAddSSHItemEx(HWND hCombo, const char* realPath,
+                              bool isCustom, const char* labelOverride) {
     Str disp;
     Str text;
     int idx;
@@ -2440,7 +2481,9 @@ static void ComboAddSSHItem(HWND hCombo, const char* realPath, bool isCustom) {
     if (!hCombo || !realPath) return;
 
     str_init(&disp);
-    PathToDisplay(realPath, &disp);
+    if (labelOverride && *labelOverride)      str_set(&disp, labelOverride);
+    else if (IsEnvSSHPath(realPath))          str_set(&disp, GX_SSH_ENV_LABEL);
+    else                                     PathToDisplay(realPath, &disp);
 
     str_init(&text);
     if (isCustom) str_appendf(&text, "[自定义] %s", StrCStr(&disp));
@@ -2454,6 +2497,10 @@ static void ComboAddSSHItem(HWND hCombo, const char* realPath, bool isCustom) {
     sl_push(&g_sshComboReal, realPath);
     SendMessageA(hCombo, CB_SETITEMDATA, (WPARAM)idx,
                  (LPARAM)(g_sshComboReal.count - 1));
+}
+
+static void ComboAddSSHItem(HWND hCombo, const char* realPath, bool isCustom) {
+    ComboAddSSHItemEx(hCombo, realPath, isCustom, NULL);
 }
 
 /* 取第 idx 项的真实绝对路径。越界 / 没设置过 itemdata 都返回 NULL。 */
@@ -2614,7 +2661,7 @@ INT_PTR CALLBACK SelectSSHDialogProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM 
             }
 
             /* 验证路径有效性 */
-            if (strcmp(StrCStr(&g_userSelectedSSHPath), "ssh") == 0) {
+            if (IsEnvSSHPath(StrCStr(&g_userSelectedSSHPath))) {
                 valid = IsSSHAvailable();
             } else {
                 valid = IsFileExist(StrCStr(&g_userSelectedSSHPath));
@@ -3020,7 +3067,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     if (hasRemembered && rememberedPath.len > 0) {
         bool valid = false;
-        if (strcmp(StrCStr(&rememberedPath), "ssh") == 0) {
+        if (IsEnvSSHPath(StrCStr(&rememberedPath))) {
             valid = IsSSHAvailable();
         } else {
             valid = IsFileExist(StrCStr(&rememberedPath));
